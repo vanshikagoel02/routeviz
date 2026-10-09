@@ -1,0 +1,140 @@
+/* ==========================================================
+   RouteViz - Computer Networks Routing Laboratory theme
+   Styling only. Selectors match the existing HTML/JS output.
+   ========================================================== */
+
+/* 1. Global / Reset */
+:root {
+  --navy:#0F172A; --navy-light:#1E293B; --blue:#2563EB; --cyan:#0891B2;
+  --blue-tint:#E0F2FE; --bg:#F8FAFC; --surface:#FFFFFF; --border:#CBD5E1; --line:#E2E8F0;
+  --text:#0F172A; --muted:#64748B;
+  --green:#16A34A; --green-bg:#DCFCE7; --green-ink:#166534;
+  --orange:#F59E0B; --warn-bg:#FEF3C7; --warn-ink:#92400E;
+  --red:#DC2626; --red-bg:#FEE2E2; --red-ink:#991B1B;
+  --radius:10px; --shadow:0 1px 2px rgba(15,23,42,.06), 0 2px 8px rgba(15,23,42,.05);
+}
+* { box-sizing:border-box; }
+[hidden] { display:none !important; }
+body { margin:0; background:var(--bg); color:var(--text);
+  font:15px/1.5 Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+
+/* 2. Typography */
+h1, h2 { color:var(--navy); margin:0; }
+h2 { font-size:.78rem; font-weight:700; letter-spacing:.08em; text-transform:uppercase;
+  padding-bottom:6px; margin-bottom:8px; border-bottom:1px solid var(--line); }
+label { display:block; font-size:.82rem; font-weight:600; color:var(--navy-light); margin:8px 0 3px; }
+.hint { font-size:.82rem; color:var(--muted); margin:6px 0 0; }
+.msg { min-height:1.4em; margin:6px 0 0; font-size:.85rem; }
+.err { color:var(--red-ink); font-weight:600; }
+
+/* 3. Header */
+header { background:var(--surface); border-bottom:1px solid var(--border);
+  box-shadow:inset 0 3px 0 var(--blue); padding:12px 24px 10px; }
+header h1 { font-size:1.3rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+header p { margin:0; font-size:.85rem; color:var(--muted); }
+
+/* 4. Layout */
+main { display:grid; grid-template-columns:300px minmax(0,1fr); gap:20px;
+  max-width:1280px; margin:0 auto; padding:20px 24px; align-items:start; }
+
+/* 5. Controls */
+#side section { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:12px 14px 14px; margin-bottom:14px; }
+.row { display:flex; gap:8px; }
+.row > div { flex:1; min-width:0; }
+#linkList { list-style:none; margin:10px 0 0; padding:0; max-height:150px; overflow:auto; font-size:.85rem; }
+#linkList li { display:flex; justify-content:space-between; align-items:center;
+  padding:3px 0; border-bottom:1px solid var(--line); }
+#linkList li button { margin:0; padding:0 8px; border:0; background:none; box-shadow:none;
+  color:var(--red); font-size:1.1rem; }
+#linkList li button:hover { background:var(--red-bg); }
+
+/* 6. Buttons */
+button { font:inherit; font-size:.85rem; font-weight:600; color:var(--navy); background:var(--surface);
+  border:1px solid var(--border); border-radius:8px; padding:6px 12px; margin:8px 6px 0 0;
+  cursor:pointer; box-shadow:0 1px 1px rgba(15,23,42,.05); transition:.15s ease; }
+button:hover { background:var(--blue-tint); border-color:var(--blue); }
+button:active { transform:translateY(1px); box-shadow:none; }
+button:disabled { opacity:.5; cursor:not-allowed; background:var(--line); color:var(--muted); border-color:var(--line); transform:none; }
+#addLink, #run { background:var(--blue); border-color:var(--blue); color:#fff; }
+#addLink:hover, #run:hover { background:#1D4ED8; border-color:#1D4ED8; }
+#clear, #fail { color:var(--red-ink); border-color:#FCA5A5; }
+#clear:hover, #fail:hover { background:var(--red-bg); border-color:var(--red); }
+#send { display:block; width:100%; margin:0 0 4px; padding:11px 14px; font-size:1rem; letter-spacing:.03em;
+  color:#fff; border:0; background:linear-gradient(135deg, var(--blue), var(--cyan));
+  box-shadow:0 2px 6px rgba(37,99,235,.35); }
+#send:hover { filter:brightness(1.08); }
+#send:disabled { background:var(--line); color:var(--muted); box-shadow:none; filter:none; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline:2px solid var(--blue); outline-offset:2px; }
+
+/* 7. Inputs / Selects */
+select, input { font:inherit; font-size:.9rem; width:100%; height:34px; padding:4px 8px; color:var(--text);
+  background:var(--surface); border:1px solid var(--border); border-radius:7px; transition:.15s ease; }
+select:focus, input:focus { border-color:var(--blue); box-shadow:0 0 0 3px rgba(37,99,235,.12); outline:none; }
+select:disabled, input:disabled { background:var(--line); color:var(--muted); }
+
+/* 8. Network graph */
+#svg { display:block; width:100%; height:auto; touch-action:none; background-color:var(--surface);
+  background-image:linear-gradient(var(--line) 1px, transparent 1px), linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size:28px 28px; border:1px solid var(--navy); border-radius:var(--radius); box-shadow:var(--shadow); }
+
+/* 9. Router / link styling */
+.edge { stroke:#94A3B8; stroke-width:2; stroke-linecap:round; }
+.edge.mute { stroke:#CBD5E1; }
+.edge.on { stroke:var(--blue); stroke-width:5; }
+.edge.fail { stroke:var(--red); stroke-width:3; stroke-dasharray:7 6; }
+.node { fill:var(--surface); stroke:var(--blue); stroke-width:2.5; cursor:grab; }
+.node.on { fill:var(--blue-tint); }
+.node.cur { stroke:var(--navy); stroke-width:4; filter:drop-shadow(0 0 6px rgba(37,99,235,.55)); }
+.node.ok { fill:var(--green-bg); stroke:var(--green); stroke-width:3.5; }
+.lbl { font-size:14px; font-weight:700; fill:var(--navy); text-anchor:middle; dominant-baseline:central; pointer-events:none; }
+.cost { font-size:13px; font-weight:600; fill:var(--navy-light); text-anchor:middle;
+  paint-order:stroke; stroke:#fff; stroke-width:6px; stroke-linejoin:round; }
+.x { font-size:12px; font-weight:700; fill:var(--red); text-anchor:middle; dominant-baseline:central; pointer-events:none;
+  paint-order:stroke; stroke:#fff; stroke-width:5px; stroke-linejoin:round; }
+#pkt { fill:var(--orange); stroke:var(--navy); stroke-width:2; filter:drop-shadow(0 0 5px rgba(245,158,11,.8)); }
+
+/* 10. Results */
+#out { margin-top:14px; background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:12px 16px 2px; overflow-x:auto; }
+#out:empty { display:none; }
+#out h2:not(:first-child) { margin-top:10px; }
+#out p:not(.hint) { margin:8px 0; padding:8px 12px; background:var(--blue-tint); border-left:4px solid var(--blue);
+  border-radius:0 8px 8px 0; color:#1D4ED8; font-weight:700; }
+#out p b { color:var(--navy); font-weight:600; }
+
+/* 11. Packet status + 12. Network status (monitor cards) */
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+#pstat, #nstat, #alert { background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:var(--shadow); padding:10px 14px 12px; margin-top:14px; font-size:.88rem; line-height:1.7; }
+#pstat { border-top:3px solid var(--blue); }
+#pstat:has(.st-transit) { border-top-color:var(--orange); }
+#pstat:has(.st-ok) { border-top-color:var(--green); }
+#nstat { border-top:3px solid var(--cyan); }
+#pstat b, #nstat b { display:inline-block; padding:0 10px; border-radius:999px; font-size:.8rem; line-height:1.6; }
+b.st-ok { color:var(--green-ink); background:var(--green-bg); }
+b.st-transit { color:var(--warn-ink); background:var(--warn-bg); }
+b.st-bad { color:var(--red-ink); background:var(--red-bg); }
+#nstat b.st-bad { color:var(--warn-ink); background:var(--warn-bg); } /* DEGRADED = orange */
+
+/* 14. Alerts (link failure / restore) */
+#alert { border-left:4px solid var(--blue); background:#F0F9FF; }
+#alert:has(.st-ok) { border-left-color:var(--green); background:#F0FDF4; }
+#alert:has(.st-bad) { border-left-color:var(--red); background:#FEF2F2; }
+#alert b { background:none; padding:0; }
+#alert b.st-bad { color:var(--red-ink); } #alert b.st-ok { color:var(--green-ink); }
+
+/* 13. Tables (routing, Dijkstra order, Distance Vector rounds) */
+table { border-collapse:separate; border-spacing:0; margin:8px 0 14px; min-width:280px; font-size:.86rem;
+  font-variant-numeric:tabular-nums; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+th { background:var(--navy); color:#fff; font-size:.74rem; font-weight:600; letter-spacing:.06em;
+  text-transform:uppercase; padding:6px 16px; text-align:center; }
+td { padding:5px 16px; text-align:center; border-top:1px solid var(--line); background:var(--surface); }
+tr:nth-child(even) td { background:var(--bg); }
+#out tr.sel td { background:var(--blue-tint); color:var(--navy); font-weight:700; }
+#out td.chg { background:var(--warn-bg); font-weight:700; }
+#out p.hint + table th, #out p.hint + table td { padding:4px 10px; font-size:.82rem; } /* compact DV table */
+
+/* 16. Responsive design */
+@media (max-width:900px) { main { grid-template-columns:1fr; padding:14px; } header { padding:10px 14px 8px; } }
+@media (max-width:560px) { .grid2 { grid-template-columns:1fr; gap:0; } }

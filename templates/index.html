@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RouteViz</title>
+<link rel="stylesheet" href="static/style.css">
+</head>
+<body>
+<header>
+  <h1>RouteViz</h1>
+  <p>Interactive Computer Networks Routing Simulator &ndash; topology, routing tables, packet forwarding, link failure</p>
+</header>
+<main>
+  <div id="side">
+    <section>
+      <h2>Routers</h2>
+      <button id="addNode">Add router</button>
+      <button id="sample">Load sample</button>
+      <button id="clear">Clear all</button>
+      <p class="hint">Drag routers in the diagram to move them.</p>
+    </section>
+    <section>
+      <h2>Links</h2>
+      <div class="row">
+        <div><label for="la">Router A</label><select id="la"></select></div>
+        <div><label for="lb">Router B</label><select id="lb"></select></div>
+      </div>
+      <label for="lc">Cost</label>
+      <input id="lc" type="number" min="1" value="1">
+      <button id="addLink">Add / update link</button>
+      <ul id="linkList"></ul>
+    </section>
+    <section>
+      <h2>Compute</h2>
+      <label for="algo">Algorithm</label>
+      <select id="algo">
+        <option value="dijkstra">Dijkstra (link state)</option>
+        <option value="dv">Distance Vector</option>
+      </select>
+      <div class="row">
+        <div><label for="src">Source</label><select id="src"></select></div>
+        <div><label for="dst">Destination</label><select id="dst"></select></div>
+      </div>
+      <button id="run">Find shortest path</button>
+      <p id="err" class="msg err"></p>
+    </section>
+    <section>
+      <h2>Actions</h2>
+      <button id="send" class="primary" disabled>🚀 Send packet</button>
+      <label for="fl">Link to fail / restore</label>
+      <select id="fl"></select>
+      <button id="fail">⚠ Simulate link failure</button>
+      <button id="reset">Reset</button>
+    </section>
+  </div>
+
+  <div>
+    <svg id="svg" viewBox="0 0 700 460" role="img" aria-label="Network topology"><g id="layer"></g><circle id="pkt" r="9" style="display:none"/></svg>
+    <div id="alert" class="panel" hidden></div>
+    <div class="grid2"><div class="panel" id="pstat"></div><div class="panel" id="nstat"></div></div>
+    <div id="out"></div>
+  </div>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+// Graph state (nodes/links, failed flags), routing result (res) and packet/UI state
+const S = { nodes: [], links: [], n: 0, res: null, pk: null, cur: null, ok: null, busy: false, sent: 0, done: 0, pid: 1023 };
+const NS = "http://www.w3.org/2000/svg";
+
+function addNode() {
+  S.n++;
+  const k = S.nodes.length;
+  S.nodes.push({ id: "R" + S.n, x: 100 + (k % 4) * 165, y: 90 + Math.floor(k / 4) * 130 });
+  S.res = null; refresh();
+}
+
+function loadSample() {
+  S.nodes = []; S.links = []; S.n = 0;
+  [[110,110],[300,70],[500,110],[110,340],[300,380],[500,340]].forEach(([x, y]) => {
+    S.n++; S.nodes.push({ id: "R" + S.n, x, y });
+  });
+  [["R1","R2",2],["R2","R3",3],["R1","R4",1],["R2","R5",7],["R3","R6",2],
+   ["R4","R5",4],["R5","R6",1],["R2","R4",5]]
+    .forEach(([a, b, cost]) => S.links.push({ a, b, cost }));
+  S.res = null; refresh();
+}
+
+function addLink() {
+  const a = $("la").value, b = $("lb").value, cost = Number($("lc").value);
+  if (!a || !b || a === b) return say("Choose two different routers.");
+  if (!(cost > 0)) return say("Cost must be a positive number.");
+  say("");
+  const ex = S.links.find(l => (l.a === a && l.b === b) || (l.a === b && l.b === a));
+  if (ex) ex.cost = cost; else S.links.push({ a, b, cost });
+  S.res = null; refresh();
+}
+
+function removeLink(i) { S.links.splice(i, 1); S.res = null; refresh(); }
+function say(t) { $("err").textContent = t; }
+
+function fillSelect(id, keepDefault) {
+  const el = $(id), old = el.value;
+  el.innerHTML = S.nodes.map(n => `<option>${n.id}</option>`).join("");
+  if (S.nodes.some(n => n.id === old)) el.value = old;
+  else if (keepDefault != null && S.nodes[keepDefault]) el.value = S.nodes[keepDefault].id;
+}
+
+function refresh() {
+  ["la", "src"].forEach(id => fillSelect(id, 0));
+  ["lb", "dst"].forEach(id => fillSelect(id, S.nodes.length - 1));
+  $("linkList").innerHTML = S.links.map((l, i) =>
+    `<li><span>${l.a} &ndash; ${l.b} (cost ${l.cost})</span>
+     <button onclick="removeLink(${i})" aria-label="Remove link ${l.a} to ${l.b}">&times;</button></li>`).join("");
+  const fv = $("fl").value;
+  $("fl").innerHTML = S.links.map((l, i) => `<option value="${i}">${l.a}–${l.b}${l.failed ? " (failed)" : ""}</option>`).join("");
+  if (fv) $("fl").value = fv;
+  if (!S.res) { S.pk = null; S.cur = S.ok = null; }
+  draw(); showResult(); pkStat(); netStatus();
+}
+
+function draw() {
+  const path = S.res ? S.res.path : [];
+  const onEdge = new Set();
+  for (let i = 0; i + 1 < path.length; i++) onEdge.add([path[i], path[i + 1]].sort().join("|"));
+  const pos = Object.fromEntries(S.nodes.map(n => [n.id, n]));
+  let h = "";
+  S.links.forEach(l => {
+    const A = pos[l.a], B = pos[l.b];
+    if (!A || !B) return;
+    const on = onEdge.has([l.a, l.b].sort().join("|"));
+    h += `<line class="edge${l.failed ? " fail" : on ? " on" : path.length ? " mute" : ""}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
+    h += `<text class="cost" x="${(A.x + B.x) / 2}" y="${(A.y + B.y) / 2 - 6}">${l.cost}</text>`;
+    if (l.failed) h += `<text class="x" x="${(A.x + B.x) / 2}" y="${(A.y + B.y) / 2 + 13}">&#10005; FAILED</text>`;
+  });
+  S.nodes.forEach(n => {
+    h += `<g data-id="${n.id}"><circle class="node${path.includes(n.id) ? " on" : ""}${n.id === S.cur ? " cur" : ""}${n.id === S.ok ? " ok" : ""}" cx="${n.x}" cy="${n.y}" r="24"/>
+          <text class="lbl" x="${n.x}" y="${n.y}">${n.id}</text></g>`;
+  });
+  $("layer").innerHTML = h;
+}
+
+/* dragging routers */
+let drag = null;
+const svg = $("svg");
+svg.addEventListener("pointerdown", e => {
+  if (S.busy) return;  // no dragging while a packet is in transit
+  const g = e.target.closest("[data-id]");
+  if (g) { drag = S.nodes.find(n => n.id === g.dataset.id); svg.setPointerCapture(e.pointerId); }
+});
+svg.addEventListener("pointermove", e => {
+  if (!drag) return;
+  const p = svg.createSVGPoint(); p.x = e.clientX; p.y = e.clientY;
+  const q = p.matrixTransform(svg.getScreenCTM().inverse());
+  drag.x = Math.max(28, Math.min(672, q.x)); drag.y = Math.max(28, Math.min(432, q.y));
+  draw();
+});
+svg.addEventListener("pointerup", () => { drag = null; });
+
+async function run() {
+  say("");
+  if (S.nodes.length < 2) return say("Add at least two routers.");
+  const body = {
+    nodes: S.nodes.map(n => n.id), links: S.links,
+    algorithm: $("algo").value, source: $("src").value, dest: $("dst").value
+  };
+  const r = await fetch("/api/compute", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (!r.ok) return say(data.error || "Request failed.");
+  data.src = body.source; data.dst = body.dest;
+  S.res = data; S.cur = S.ok = null; S.pk = null; refresh();
+}
+
+function showResult() {
+  const R = S.res, out = $("out");
+  if (!R) { out.innerHTML = ""; updateSend(); return; }
+  const c = v => v === null ? "&infin;" : v;
+  let h = `<h2>Result: ${R.algorithm === "dijkstra" ? "Dijkstra" : "Distance Vector"}</h2>`;
+  h += `<p class="hint">${R.algorithm === "dijkstra"
+    ? "Link state: every router knows the full topology, runs Dijkstra, and builds a routing table (next hop per destination)."
+    : "Distance vector: routers exchange vectors with neighbours each round until the tables stop changing."}</p>`;
+  h += R.path.length
+    ? `<p><b>Shortest path ${R.src} to ${R.dst}:</b> ${R.path.join(" &rarr; ")} &nbsp;(total cost ${R.cost}, next hop ${R.path[1]})</p>`
+    : `<p><b>No path</b> from ${R.src} to ${R.dst}.</p>`;
+  h += `<h2>Routing table of ${R.src}</h2><table><tr><th>Destination</th><th>Next hop</th><th>Cost</th></tr>` +
+    R.table.map(t => `<tr class="${t.dest === R.dst ? "sel" : ""}"><td>${t.dest}</td><td>${t.next}</td><td>${c(t.cost)}</td></tr>`).join("") + `</table>`;
+  if (R.order) {
+    h += `<h2>Order in which routers are finalized</h2><table><tr><th>Step</th><th>Router</th><th>Distance</th></tr>` +
+      R.order.map((o, i) => `<tr><td>${i + 1}</td><td>${o.node}</td><td>${c(o.dist)}</td></tr>`).join("") + `</table>`;
+  } else {
+    const ds = Object.keys(R.rounds[0]);
+    h += `<h2>Distance vector of ${R.src} per exchange round</h2>
+      <p class="hint">&#10003; Converged after ${R.exchanges} round(s); highlighted cells changed in that round.</p>
+      <table><tr><th>Round</th>${ds.map(d => `<th>${d}</th>`).join("")}</tr>` +
+      R.rounds.map((r, i) => `<tr><td>${i}</td>${ds.map(d => `<td class="${i && r[d] !== R.rounds[i - 1][d] ? "chg" : ""}">${c(r[d])}</td>`).join("")}</tr>`).join("") + `</table>`;
+  }
+  out.innerHTML = h; updateSend();
+}
+
+$("addNode").onclick = addNode;
+$("sample").onclick = loadSample;
+$("clear").onclick = () => { S.nodes = []; S.links = []; S.n = 0; S.res = null; say(""); refresh(); };
+$("addLink").onclick = addLink;
+$("run").onclick = run;
+/* ---------- Packet simulation: driven by the real routing result (S.res.path) ---------- */
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+function updateSend() { $("send").disabled = !(S.res && S.res.path.length > 1 && !S.busy); }
+function lock(b) {
+  S.busy = b;
+  document.querySelectorAll("#side button, #side select, #side input").forEach(e => e.disabled = b);
+  $("send").textContent = b ? "PACKET IN TRANSIT..." : "🚀 Send packet";
+  updateSend();
+}
+function move(a, b) {  // glide the marker along the real link between two router positions
+  return new Promise(res => {
+    const t0 = performance.now(), D = 900, pk = $("pkt");
+    (function f(t) {
+      const k = Math.min(1, (t - t0) / D);
+      pk.setAttribute("cx", a.x + (b.x - a.x) * k); pk.setAttribute("cy", a.y + (b.y - a.y) * k);
+      k < 1 ? requestAnimationFrame(f) : res();
+    })(t0);
+  });
+}
+async function send() {
+  const R = S.res;
+  if (!R || R.path.length < 2 || S.busy) return;
+  const P = R.path, pos = id => S.nodes.find(n => n.id === id), pk = $("pkt");
+  lock(true); S.sent++; S.pid++; S.ok = null;
+  const st = S.pk = { id: S.pid, hop: 0, next: P[1], status: "CREATED" };
+  pk.setAttribute("cx", pos(P[0]).x); pk.setAttribute("cy", pos(P[0]).y); pk.style.display = "block";
+  S.cur = P[0]; pkStat(); draw(); netStatus();
+  await sleep(700);
+  for (let i = 0; i < P.length - 1; i++) {  // next-hop forwarding, one router at a time
+    S.cur = P[i]; st.hop = i; st.next = P[i + 1]; st.status = "FORWARDING";
+    pkStat(); draw();
+    await move(pos(P[i]), pos(P[i + 1]));
+  }
+  S.cur = S.ok = P[P.length - 1]; st.hop = P.length - 1; st.next = "-"; st.status = "DELIVERED"; S.done++;
+  pk.style.display = "none"; pkStat(); draw(); netStatus(); lock(false);
+}
+function pkStat() {
+  const p = S.pk, R = S.res, el = $("pstat");
+  if (!p || !R) { el.innerHTML = "<h2>Packet status</h2>No packet sent."; return; }
+  const n = R.path.length - 1, del = p.status === "DELIVERED";
+  el.innerHTML = `<h2>Packet status</h2>Packet ID: #${p.id}<br>Source: ${R.src}<br>Destination: ${R.dst}<br>
+    Current router: ${S.cur}<br>Next hop: ${p.next}<br>Hop: ${p.hop} / ${n}<br>Total cost: ${R.cost}<br>
+    Status: <b class="${del ? "st-ok" : "st-transit"}">${del ? "&#10003; DELIVERED" : p.status === "CREATED" ? "&#9679; PACKET CREATED" : "&#9679; IN TRANSIT (FORWARDING)"}</b>` +
+    (del ? `<br>Path: ${R.path.join(" &rarr; ")}<br>Total hops: ${n}` : "");
+}
+function netStatus() {
+  const f = S.links.filter(l => l.failed).length;
+  $("nstat").innerHTML = `<h2>Network status</h2>Routers: ${S.nodes.length}<br>Active links: ${S.links.length - f}<br>
+    Failed links: ${f}<br>Packets sent: ${S.sent}<br>Packets delivered: ${S.done}<br>
+    Status: <b class="${f ? "st-bad" : "st-ok"}">&#9679; ${f ? "DEGRADED" : "ONLINE"}</b>`;
+}
+
+/* ---------- Link failure: mark link failed, re-run the real routing algorithm ---------- */
+function alertBox(html) { const a = $("alert"); a.innerHTML = html; a.hidden = false; }
+async function toggleFail() {
+  const l = S.links[+$("fl").value];
+  if (!l) return say("Add a link first.");
+  const prev = S.res, name = `${l.a}–${l.b}`;
+  l.failed = !l.failed; S.res = null; refresh();
+  const head = l.failed ? `<b class="st-bad">⚠ LINK ${name} FAILED</b><br>${l.a} ↔ ${l.b} is unavailable.`
+                        : `<b class="st-ok">Link ${name} restored.</b>`;
+  if (!prev) return alertBox(head + "<br>Run “Find shortest path” to compute a route.");
+  await run();  // the failed link is excluded by the backend when it builds the graph
+  const N = S.res;
+  let t = head + `<br>Previous route: ${prev.path.length ? prev.path.join(" → ") + " (cost " + prev.cost + ")" : "none"}<br>`;
+  if (!N || !N.path.length) t += `<b class="st-bad">✗ No route available.</b>`;
+  else t += `New route: ${N.path.join(" → ")} (cost ${N.cost})<br><b class="st-ok">✓ ROUTE ${N.path.join() === prev.path.join() ? "UNCHANGED" : "UPDATED"}</b> &ndash; next hop ${N.path[1]}`;
+  alertBox(t);
+}
+$("send").onclick = send;
+$("fail").onclick = toggleFail;
+$("reset").onclick = () => { S.links.forEach(l => l.failed = false); S.res = null; S.sent = S.done = 0; $("alert").hidden = true; say(""); refresh(); };
+loadSample();
+</script>
+</body>
+</html>
