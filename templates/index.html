@@ -3,23 +3,75 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>RouteViz</title>
-<link rel="stylesheet" href="static/style.css">
+<title>RouteViz — Interactive Computer Networks Routing Laboratory</title>
+<meta name="description" content="RouteViz: An interactive routing algorithm visualizer for computer networks. Explore Dijkstra, Distance Vector, packet forwarding, link failures, and network topology.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+
+<!-- ==================== HEADER ==================== -->
 <header>
-  <h1>RouteViz</h1>
-  <p>Interactive Computer Networks Routing Simulator &ndash; topology, routing tables, packet forwarding, link failure</p>
+  <div class="header-brand">
+    <div class="header-logo">R</div>
+    <div>
+      <h1>RouteViz</h1>
+      <div class="header-sub">Interactive Computer Networks Routing Laboratory</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <div id="net-status-pill">
+      <div class="dot"></div>
+      <span id="net-status-text">ONLINE</span>
+    </div>
+  </div>
 </header>
+
+<!-- ==================== MAIN ==================== -->
 <main>
+
+  <!-- ======= LEFT SIDEBAR ======= -->
   <div id="side">
+
+    <!-- Routers section -->
     <section>
       <h2>Routers</h2>
-      <button id="addNode">Add router</button>
-      <button id="sample">Load sample</button>
-      <button id="clear">Clear all</button>
-      <p class="hint">Drag routers in the diagram to move them.</p>
+      <div>
+        <button id="addNode">+ Add Router</button>
+        <button id="sample">Load Sample</button>
+        <button id="clear" class="btn-danger">Clear All</button>
+      </div>
+      <p class="hint" style="margin-top:6px">Drag routers in the diagram to reposition them.</p>
+      <!-- Topology stats -->
+      <div id="topo-stats">
+        <div class="topo-stat">
+          <div class="ts-val" id="ts-routers">0</div>
+          <div class="ts-label">Routers</div>
+        </div>
+        <div class="topo-stat ts-active">
+          <div class="ts-val" id="ts-links-active">0</div>
+          <div class="ts-label">Active Links</div>
+        </div>
+        <div class="topo-stat ts-failed">
+          <div class="ts-val" id="ts-links-failed">0</div>
+          <div class="ts-label">Failed Links</div>
+        </div>
+        <div class="topo-stat">
+          <div class="ts-val" id="ts-links-total">0</div>
+          <div class="ts-label">Total Links</div>
+        </div>
+      </div>
+      <!-- Sample topologies -->
+      <div style="margin-top:8px; display:flex; gap:4px; flex-wrap:wrap;">
+        <button class="btn-sm" onclick="loadSampleTopo('alt')">Alt Routes</button>
+        <button class="btn-sm" onclick="loadSampleTopo('failure')">Failure Demo</button>
+        <button class="btn-sm" onclick="loadSampleTopo('disconnected')">Disconnected</button>
+      </div>
     </section>
+
+    <!-- Links section -->
     <section>
       <h2>Links</h2>
       <div class="row">
@@ -28,47 +80,252 @@
       </div>
       <label for="lc">Cost</label>
       <input id="lc" type="number" min="1" value="1">
-      <button id="addLink">Add / update link</button>
+      <button id="addLink">Add / Update Link</button>
       <ul id="linkList"></ul>
     </section>
+
+    <!-- Compute section -->
     <section>
-      <h2>Compute</h2>
+      <h2>Compute Route</h2>
       <label for="algo">Algorithm</label>
       <select id="algo">
-        <option value="dijkstra">Dijkstra (link state)</option>
+        <option value="dijkstra">Dijkstra (Link State)</option>
         <option value="dv">Distance Vector</option>
       </select>
       <div class="row">
         <div><label for="src">Source</label><select id="src"></select></div>
         <div><label for="dst">Destination</label><select id="dst"></select></div>
       </div>
-      <button id="run">Find shortest path</button>
+      <button id="run">Find Shortest Path</button>
       <p id="err" class="msg err"></p>
     </section>
+
+    <!-- Actions section -->
     <section>
       <h2>Actions</h2>
-      <button id="send" class="primary" disabled>🚀 Send packet</button>
-      <label for="fl">Link to fail / restore</label>
-      <select id="fl"></select>
-      <button id="fail">⚠ Simulate link failure</button>
-      <button id="reset">Reset</button>
+      <button id="send" class="primary" disabled>🚀 Send Packet</button>
+      <div style="margin-top:8px">
+        <label for="fl">Link to Fail / Restore</label>
+        <select id="fl"></select>
+      </div>
+      <div style="display:flex;gap:4px;flex-wrap:wrap;">
+        <button id="fail">⚠ Toggle Link Failure</button>
+        <button id="reset">Reset All</button>
+      </div>
     </section>
+
+    <!-- Animation speed -->
+    <section id="speed-section">
+      <h2>Animation Speed</h2>
+      <div id="speed-row">
+        <span style="font-size:.78rem;color:var(--muted)">Slow</span>
+        <input type="range" id="speedSlider" min="1" max="5" value="3" step="1">
+        <span style="font-size:.78rem;color:var(--muted)">Fast</span>
+      </div>
+      <div style="text-align:center;font-size:.78rem;color:var(--muted);margin-top:4px" id="speed-label">Normal</div>
+    </section>
+
   </div>
 
-  <div>
-    <svg id="svg" viewBox="0 0 700 460" role="img" aria-label="Network topology"><g id="layer"></g><circle id="pkt" r="9" style="display:none"/></svg>
+  <!-- ======= RIGHT: Graph + Panels ======= -->
+  <div id="right-col">
+
+    <!-- Graph toolbar + SVG -->
+    <div id="graph-wrap">
+      <div id="graph-toolbar">
+        <span id="toolbar-route-info">No route computed</span>
+        <span id="toolbar-algo-info" style="color:var(--muted)"></span>
+      </div>
+      <svg id="svg" viewBox="0 0 700 460" role="img" aria-label="Network topology">
+        <g id="layer"></g>
+        <circle id="pkt" r="9" style="display:none"/>
+      </svg>
+    </div>
+
+    <!-- Alert -->
     <div id="alert" class="panel" hidden></div>
-    <div class="grid2"><div class="panel" id="pstat"></div><div class="panel" id="nstat"></div></div>
-    <div id="out"></div>
-  </div>
+
+    <!-- Results area: pstat + nstat side by side, out below -->
+    <div id="results-area">
+      <div class="panel" id="pstat"></div>
+      <div class="panel" id="nstat"></div>
+      <div id="out"></div>
+    </div>
+
+    <!-- Feature tabs -->
+    <div id="feature-tabs">
+      <div class="tab-bar" role="tablist">
+        <button class="tab-btn active" role="tab" data-tab="inspector">🔍 Decision Inspector</button>
+        <button class="tab-btn" role="tab" data-tab="traceroute">📡 Trace Route</button>
+        <button class="tab-btn" role="tab" data-tab="whatif">🧪 What-If Lab</button>
+        <button class="tab-btn" role="tab" data-tab="compare">⚖ Compare Algos</button>
+        <button class="tab-btn" role="tab" data-tab="history">📋 History</button>
+        <button class="tab-btn" role="tab" data-tab="learn">📚 Learn</button>
+      </div>
+
+      <!-- INSPECTOR TAB -->
+      <div class="tab-panel active" id="tab-inspector" role="tabpanel">
+        <div id="inspector-panel">
+          <div class="row" style="gap:8px;margin-bottom:12px">
+            <div style="flex:1">
+              <label for="insp-router">Current Router</label>
+              <select id="insp-router"></select>
+            </div>
+            <div style="flex:1">
+              <label for="insp-dest">Destination</label>
+              <select id="insp-dest"></select>
+            </div>
+            <div style="display:flex;align-items:flex-end;padding-bottom:0">
+              <button class="btn-sm btn-primary" id="insp-run" style="margin-top:0">Inspect</button>
+            </div>
+          </div>
+          <div class="insp-grid" id="insp-cards">
+            <div class="insp-card"><div class="ic-val" id="ic-nexthop">—</div><div class="ic-label">Next Hop</div></div>
+            <div class="insp-card"><div class="ic-val" id="ic-cost">—</div><div class="ic-label">Total Cost</div></div>
+            <div class="insp-card"><div class="ic-val" id="ic-linkcost">—</div><div class="ic-label">Link Cost to Next Hop</div></div>
+            <div class="insp-card"><div class="ic-val" id="ic-hops">—</div><div class="ic-label">Hop Count</div></div>
+          </div>
+          <div id="inspector-path-display">Run a route calculation first, then click Inspect.</div>
+        </div>
+      </div>
+
+      <!-- TRACEROUTE TAB -->
+      <div class="tab-panel" id="tab-traceroute" role="tabpanel">
+        <div id="traceroute-panel">
+          <div class="tr-controls">
+            <button class="btn-sm btn-primary" id="tr-start">▶ Start Trace</button>
+            <button class="btn-sm" id="tr-next" disabled>Next Hop →</button>
+            <button class="btn-sm btn-danger" id="tr-reset">⟳ Reset</button>
+          </div>
+          <div id="tr-log">
+            <span style="color:rgba(255,255,255,.35)">Compute a route first, then click "Start Trace".</span>
+          </div>
+          <div id="tr-hop-counter">
+            <span style="color:var(--muted)">Hop progress:</span>
+            <span id="tr-hop-val">—</span>
+            <span style="color:var(--muted);margin-left:8px">Cost so far:</span>
+            <span id="tr-cost-val" style="font-weight:700;color:var(--blue)">—</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- WHAT-IF TAB -->
+      <div class="tab-panel" id="tab-whatif" role="tabpanel">
+        <div id="whatif-panel">
+          <div class="wi-exp-select">
+            <button class="wi-exp-btn active" data-exp="fail">A: Link Failure</button>
+            <button class="wi-exp-btn" data-exp="restore">B: Link Restore</button>
+            <button class="wi-exp-btn" data-exp="cost">C: Cost Change</button>
+            <button class="wi-exp-btn" data-exp="isolate">D: Router Isolation</button>
+          </div>
+          <div id="wi-experiment-area">
+            <!-- Dynamically filled per experiment -->
+          </div>
+          <div id="wi-comparison" style="display:none"></div>
+        </div>
+      </div>
+
+      <!-- COMPARE TAB -->
+      <div class="tab-panel" id="tab-compare" role="tabpanel">
+        <div id="compare-panel">
+          <div class="cmp-header">
+            <div style="font-size:.84rem;color:var(--muted)">Runs both algorithms on the current topology with the same source/destination.</div>
+            <button class="btn-sm btn-primary" id="cmp-run">Run Comparison</button>
+          </div>
+          <div id="cmp-table-wrap">
+            <p class="hint">Select a source, destination and run a comparison.</p>
+          </div>
+          <p class="hint" style="margin-top:8px">
+            <strong>Note:</strong> Both algorithms run independently on the same graph snapshot.
+            Equal-cost paths may differ based on tie-breaking order.
+          </p>
+        </div>
+      </div>
+
+      <!-- HISTORY TAB -->
+      <div class="tab-panel" id="tab-history" role="tabpanel">
+        <div id="history-panel">
+          <div class="hist-controls">
+            <button class="btn-sm btn-danger" id="hist-clear">Clear History</button>
+            <button class="btn-sm btn-primary" id="hist-export">Export CSV</button>
+          </div>
+          <div id="hist-table-wrap">
+            <p class="hist-empty">No experiments recorded yet. Run "Find Shortest Path" to record results.</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- LEARN TAB -->
+      <div class="tab-panel" id="tab-learn" role="tabpanel">
+        <div id="learn-panel" style="border:none;box-shadow:none;padding:0;margin:0">
+          <div class="learn-concept active" id="lc-dijkstra">
+            <h3>🔵 Link State Routing (Dijkstra)</h3>
+            <p><span class="concept-tag">CN Concept</span> Each router floods the network with its link-state advertisements (LSAs), giving every router a complete map of the topology.</p>
+            <p>Once each router has the full topology, it independently runs <strong>Dijkstra's shortest-path algorithm</strong> to compute the least-cost route to every destination.</p>
+            <p><strong>Steps:</strong> Initialize source distance = 0, all others = ∞ → Repeatedly select the unvisited router with the lowest tentative distance → Relax its neighbors → Mark as finalized → Repeat until destination is reached → Reconstruct path via predecessor map.</p>
+            <p><strong>Complexity:</strong> O((V + E) log V) with a binary heap. Converges in one pass — no iterative exchange needed.</p>
+          </div>
+          <div class="learn-concept" id="lc-dv">
+            <h3>🟠 Distance Vector Routing (Bellman-Ford)</h3>
+            <p><span class="concept-tag">CN Concept</span> Each router maintains a <em>distance vector</em>: a table of estimated costs to every known destination, along with the next-hop router.</p>
+            <p>Routers periodically share their distance vectors with <strong>only their immediate neighbors</strong>. Each router then updates its own vector using the <em>Bellman-Ford equation</em>: cost(n→d) = min over neighbors k of (cost(n→k) + cost_k(d)).</p>
+            <p><strong>Convergence:</strong> Iterations continue until no router updates its vector. Good-news propagates fast; bad-news (count-to-infinity) propagates slowly — a key limitation addressed by split-horizon and route poisoning.</p>
+          </div>
+          <div class="learn-concept" id="lc-table">
+            <h3>📋 Routing Table</h3>
+            <p><span class="concept-tag">CN Concept</span> A routing table maps every known destination to the <strong>next hop</strong> router and the associated metric (cost). Packets are forwarded hop-by-hop using these tables — routers never need the full path, only the next step.</p>
+            <p>In Link State, tables are built from Dijkstra's predecessor map. In Distance Vector, they are built from the converged distance vectors.</p>
+          </div>
+          <div class="learn-concept" id="lc-packet">
+            <h3>🚀 Packet Forwarding</h3>
+            <p><span class="concept-tag">CN Concept</span> When a router receives a packet, it looks up the <strong>destination address</strong> in its routing table, identifies the next hop, and forwards the packet on the corresponding link. This is repeated at every router until the packet reaches its destination.</p>
+            <p>In this simulator, the packet animates along the pre-computed shortest path, simulating hop-by-hop forwarding.</p>
+          </div>
+          <div class="learn-concept" id="lc-failure">
+            <h3>⚠ Link Failure &amp; Recovery</h3>
+            <p><span class="concept-tag">CN Concept</span> When a link fails, routers that depended on it must find alternate routes. In Link State, a new LSA is flooded and all routers recompute. In Distance Vector, affected routers update their vectors, and convergence must occur again — possibly triggering count-to-infinity if no loop-prevention mechanism exists.</p>
+            <p>In this simulator, the failed link is excluded from graph construction before routing is re-run, and a comparison of old vs. new routes is displayed.</p>
+          </div>
+          <div class="learn-concept" id="lc-trace">
+            <h3>📡 Traceroute (Simulation)</h3>
+            <p><span class="concept-tag">CN Concept</span> The real <code>traceroute</code> command uses IP TTL fields and ICMP time-exceeded messages to discover intermediate routers on a path. Each packet is sent with increasing TTL values; when a router drops a packet (TTL expired), it sends back an ICMP response revealing its address.</p>
+            <p>In this simulator, we reveal hops along the pre-computed shortest path step by step, illustrating the concept of path discovery without actual ICMP mechanics.</p>
+          </div>
+          <div class="learn-concept" id="lc-whatif">
+            <h3>🧪 What-If Analysis</h3>
+            <p><span class="concept-tag">CN Concept</span> Network engineers routinely test how topology changes affect routing — before making changes in production. This is called <em>what-if analysis</em> or <em>traffic engineering</em>.</p>
+            <p>By changing link costs or simulating failures, you can observe whether the optimal path changes, whether the next-hop decision shifts, and whether the destination becomes unreachable — all using the actual routing algorithms.</p>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /feature-tabs -->
+
+  </div><!-- /right-col -->
+
 </main>
 
+<!-- ==================== JAVASCRIPT ==================== -->
 <script>
+"use strict";
 const $ = id => document.getElementById(id);
-// Graph state (nodes/links, failed flags), routing result (res) and packet/UI state
-const S = { nodes: [], links: [], n: 0, res: null, pk: null, cur: null, ok: null, busy: false, sent: 0, done: 0, pid: 1023 };
-const NS = "http://www.w3.org/2000/svg";
 
+// ============================================================
+// Graph state + routing result
+// (Preserving original S object structure exactly)
+// ============================================================
+const S = {
+  nodes: [], links: [], n: 0,
+  res: null, pk: null, cur: null, ok: null,
+  busy: false, sent: 0, done: 0, pid: 1023,
+  history: []          // NEW: experiment history
+};
+const NS = "http://www.w3.org/2000/svg";
+let ANIM_SPEED = 3;    // NEW: animation speed multiplier (1–5)
+
+// ============================================================
+// ORIGINAL: addNode
+// ============================================================
 function addNode() {
   S.n++;
   const k = S.nodes.length;
@@ -76,6 +333,9 @@ function addNode() {
   S.res = null; refresh();
 }
 
+// ============================================================
+// ORIGINAL: loadSample (6-node topology)
+// ============================================================
 function loadSample() {
   S.nodes = []; S.links = []; S.n = 0;
   [[110,110],[300,70],[500,110],[110,340],[300,380],[500,340]].forEach(([x, y]) => {
@@ -87,19 +347,68 @@ function loadSample() {
   S.res = null; refresh();
 }
 
+// ============================================================
+// NEW: additional sample topologies
+// ============================================================
+function loadSampleTopo(name) {
+  if (S.nodes.length > 0) {
+    if (!confirm("This will replace the current topology. Continue?")) return;
+  }
+  S.nodes = []; S.links = []; S.n = 0; S.res = null;
+
+  if (name === 'alt') {
+    // Alternative-route network: multiple paths with different costs
+    [[120,120],[350,80],[580,120],[120,340],[350,380],[580,340]].forEach(([x,y]) => {
+      S.n++; S.nodes.push({ id:"R"+S.n, x, y });
+    });
+    [["R1","R2",1],["R2","R3",1],["R3","R6",1],
+     ["R1","R4",2],["R4","R5",2],["R5","R6",2],
+     ["R2","R5",5],["R1","R3",10]].forEach(([a,b,c]) => S.links.push({a,b,cost:c}));
+  } else if (name === 'failure') {
+    // Failure demonstration: obvious alternate path
+    [[100,200],[280,100],[280,300],[460,100],[460,300],[640,200]].forEach(([x,y]) => {
+      S.n++; S.nodes.push({ id:"R"+S.n, x, y });
+    });
+    [["R1","R2",1],["R1","R3",1],["R2","R4",1],["R3","R5",1],
+     ["R4","R6",1],["R5","R6",1],["R2","R3",5]].forEach(([a,b,c]) => S.links.push({a,b,cost:c}));
+  } else if (name === 'disconnected') {
+    // Disconnected network: two isolated components
+    [[120,180],[300,120],[300,260],[480,180],[540,320],[400,400]].forEach(([x,y]) => {
+      S.n++; S.nodes.push({ id:"R"+S.n, x, y });
+    });
+    [["R1","R2",2],["R2","R3",3],["R1","R3",6],
+     ["R4","R5",1]].forEach(([a,b,c]) => S.links.push({a,b,cost:c}));
+    // R6 is completely isolated — no links
+  }
+  refresh();
+}
+
+// ============================================================
+// ORIGINAL: addLink
+// ============================================================
 function addLink() {
   const a = $("la").value, b = $("lb").value, cost = Number($("lc").value);
   if (!a || !b || a === b) return say("Choose two different routers.");
   if (!(cost > 0)) return say("Cost must be a positive number.");
   say("");
   const ex = S.links.find(l => (l.a === a && l.b === b) || (l.a === b && l.b === a));
-  if (ex) ex.cost = cost; else S.links.push({ a, b, cost });
+  if (ex) { ex.cost = cost; ex.failed = false; } else S.links.push({ a, b, cost });
   S.res = null; refresh();
 }
 
+// ============================================================
+// ORIGINAL: removeLink
+// ============================================================
 function removeLink(i) { S.links.splice(i, 1); S.res = null; refresh(); }
+
+// ============================================================
+// ORIGINAL: say (error message helper)
+// ============================================================
 function say(t) { $("err").textContent = t; }
 
+// ============================================================
+// ORIGINAL: fillSelect
+// ============================================================
 function fillSelect(id, keepDefault) {
   const el = $(id), old = el.value;
   el.innerHTML = S.nodes.map(n => `<option>${n.id}</option>`).join("");
@@ -107,45 +416,139 @@ function fillSelect(id, keepDefault) {
   else if (keepDefault != null && S.nodes[keepDefault]) el.value = S.nodes[keepDefault].id;
 }
 
+// ============================================================
+// ORIGINAL: refresh — updated to also call new helpers
+// ============================================================
 function refresh() {
   ["la", "src"].forEach(id => fillSelect(id, 0));
   ["lb", "dst"].forEach(id => fillSelect(id, S.nodes.length - 1));
-  $("linkList").innerHTML = S.links.map((l, i) =>
-    `<li><span>${l.a} &ndash; ${l.b} (cost ${l.cost})</span>
-     <button onclick="removeLink(${i})" aria-label="Remove link ${l.a} to ${l.b}">&times;</button></li>`).join("");
+  // Also fill inspector and new selects
+  ["insp-router"].forEach(id => fillSelect(id, 0));
+  ["insp-dest"].forEach(id => fillSelect(id, S.nodes.length - 1));
+
+  $("linkList").innerHTML = S.links.map((l, i) => {
+    const failed = l.failed ? `<span class="link-failed-tag">FAILED</span>` : "";
+    return `<li><span class="link-badge">${l.a} – ${l.b} (cost ${l.cost}) ${failed}</span>
+     <button onclick="removeLink(${i})" aria-label="Remove link ${l.a} to ${l.b}">&times;</button></li>`;
+  }).join("");
+
   const fv = $("fl").value;
   $("fl").innerHTML = S.links.map((l, i) => `<option value="${i}">${l.a}–${l.b}${l.failed ? " (failed)" : ""}</option>`).join("");
   if (fv) $("fl").value = fv;
+
   if (!S.res) { S.pk = null; S.cur = S.ok = null; }
-  draw(); showResult(); pkStat(); netStatus();
+  updateTopoStats();
+  draw(); showResult(); pkStat(); netStatus(); updateToolbar();
 }
 
+// ============================================================
+// NEW: topology stats
+// ============================================================
+function updateTopoStats() {
+  const failed = S.links.filter(l => l.failed).length;
+  $("ts-routers").textContent = S.nodes.length;
+  $("ts-links-active").textContent = S.links.length - failed;
+  $("ts-links-failed").textContent = failed;
+  $("ts-links-total").textContent = S.links.length;
+}
+
+// ============================================================
+// NEW: toolbar route info
+// ============================================================
+function updateToolbar() {
+  const R = S.res;
+  if (!R) {
+    $("toolbar-route-info").textContent = "No route computed";
+    $("toolbar-algo-info").textContent = "";
+  } else if (!R.path.length) {
+    $("toolbar-route-info").textContent = `No path: ${R.src} → ${R.dst}`;
+    $("toolbar-algo-info").textContent = R.algorithm === "dijkstra" ? "Dijkstra" : "Distance Vector";
+  } else {
+    $("toolbar-route-info").textContent = `${R.src} → ${R.dst}  |  ${R.path.join(" → ")}  |  cost ${R.cost}`;
+    $("toolbar-algo-info").textContent = R.algorithm === "dijkstra" ? "Dijkstra" : "Distance Vector";
+  }
+}
+
+// ============================================================
+// ORIGINAL: draw — extended to show src/dst node states
+// ============================================================
 function draw() {
   const path = S.res ? S.res.path : [];
+  const srcId = S.res ? S.res.src : null;
+  const dstId = S.res ? S.res.dst : null;
   const onEdge = new Set();
   for (let i = 0; i + 1 < path.length; i++) onEdge.add([path[i], path[i + 1]].sort().join("|"));
+
+  // Traceroute edge/node overlay
+  const trEdge = new Set();
+  const trDone = new Set();
+  if (TR.active && TR.hop >= 0) {
+    for (let i = 0; i < TR.hop && i + 1 < path.length; i++) {
+      trEdge.add([path[i], path[i + 1]].sort().join("|"));
+      trDone.add(path[i]);
+    }
+    if (TR.hop > 0 && TR.hop <= path.length) trDone.add(path[TR.hop - 1]);
+  }
+
   const pos = Object.fromEntries(S.nodes.map(n => [n.id, n]));
   let h = "";
+
   S.links.forEach(l => {
     const A = pos[l.a], B = pos[l.b];
     if (!A || !B) return;
-    const on = onEdge.has([l.a, l.b].sort().join("|"));
-    h += `<line class="edge${l.failed ? " fail" : on ? " on" : path.length ? " mute" : ""}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
+    const key = [l.a, l.b].sort().join("|");
+    const on = onEdge.has(key);
+    const trD = trEdge.has(key);
+    let cls = "edge";
+    if (l.failed) cls += " fail";
+    else if (trD) cls += " trace-done";
+    else if (on) cls += " on";
+    else if (path.length) cls += " mute";
+    h += `<line class="${cls}" x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}"/>`;
     h += `<text class="cost" x="${(A.x + B.x) / 2}" y="${(A.y + B.y) / 2 - 6}">${l.cost}</text>`;
     if (l.failed) h += `<text class="x" x="${(A.x + B.x) / 2}" y="${(A.y + B.y) / 2 + 13}">&#10005; FAILED</text>`;
   });
+
   S.nodes.forEach(n => {
-    h += `<g data-id="${n.id}"><circle class="node${path.includes(n.id) ? " on" : ""}${n.id === S.cur ? " cur" : ""}${n.id === S.ok ? " ok" : ""}" cx="${n.x}" cy="${n.y}" r="24"/>
-          <text class="lbl" x="${n.x}" y="${n.y}">${n.id}</text></g>`;
+    const onPath = path.includes(n.id);
+    const isSrc = n.id === srcId && path.length > 0;
+    const isDst = n.id === dstId && path.length > 0;
+    const isCur = n.id === S.cur;
+    const isOk  = n.id === S.ok;
+    const isTrCur = TR.active && path.length > 0 && path[TR.hop] === n.id;
+    const isTrDone = trDone.has(n.id) && !isTrCur;
+
+    let cls = "node";
+    if (isTrCur)       cls += " trace-cur";
+    else if (isTrDone) cls += " trace-done";
+    else if (isOk)     cls += " ok";
+    else if (isCur)    cls += " cur";
+    else if (isSrc)    cls += " src";
+    else if (isDst)    cls += " dst";
+    else if (onPath)   cls += " on";
+
+    // Role label (S = source, D = dest)
+    let roleLabel = "";
+    if (n.id === srcId && path.length > 0) roleLabel = "SRC";
+    else if (n.id === dstId && path.length > 0) roleLabel = "DST";
+
+    h += `<g data-id="${n.id}">
+      <circle class="${cls}" cx="${n.x}" cy="${n.y}" r="24"/>
+      <text class="lbl" x="${n.x}" y="${n.y + (roleLabel ? -4 : 0)}">${n.id}</text>
+      ${roleLabel ? `<text class="node-role" x="${n.x}" y="${n.y + 11}" style="font-size:8px;fill:var(--muted)">${roleLabel}</text>` : ""}
+    </g>`;
   });
+
   $("layer").innerHTML = h;
 }
 
-/* dragging routers */
+// ============================================================
+// ORIGINAL: dragging routers
+// ============================================================
 let drag = null;
 const svg = $("svg");
 svg.addEventListener("pointerdown", e => {
-  if (S.busy) return;  // no dragging while a packet is in transit
+  if (S.busy) return;
   const g = e.target.closest("[data-id]");
   if (g) { drag = S.nodes.find(n => n.id === g.dataset.id); svg.setPointerCapture(e.pointerId); }
 });
@@ -158,6 +561,9 @@ svg.addEventListener("pointermove", e => {
 });
 svg.addEventListener("pointerup", () => { drag = null; });
 
+// ============================================================
+// ORIGINAL: run — extended to record history
+// ============================================================
 async function run() {
   say("");
   if (S.nodes.length < 2) return say("Add at least two routers.");
@@ -171,113 +577,696 @@ async function run() {
   const data = await r.json();
   if (!r.ok) return say(data.error || "Request failed.");
   data.src = body.source; data.dst = body.dest;
-  S.res = data; S.cur = S.ok = null; S.pk = null; refresh();
+  S.res = data; S.cur = S.ok = null; S.pk = null;
+  // Record history
+  recordHistory(data);
+  refresh();
 }
 
+// ============================================================
+// ORIGINAL: showResult
+// ============================================================
 function showResult() {
   const R = S.res, out = $("out");
   if (!R) { out.innerHTML = ""; updateSend(); return; }
   const c = v => v === null ? "&infin;" : v;
-  let h = `<h2>Result: ${R.algorithm === "dijkstra" ? "Dijkstra" : "Distance Vector"}</h2>`;
+  let h = `<h2>Result: ${R.algorithm === "dijkstra" ? "Dijkstra (Link State)" : "Distance Vector"}</h2>`;
   h += `<p class="hint">${R.algorithm === "dijkstra"
-    ? "Link state: every router knows the full topology, runs Dijkstra, and builds a routing table (next hop per destination)."
-    : "Distance vector: routers exchange vectors with neighbours each round until the tables stop changing."}</p>`;
+    ? "Link State: every router knows the full topology, runs Dijkstra, and builds a routing table (next hop per destination)."
+    : "Distance Vector: routers exchange vectors with neighbours each round until the tables stop changing (Bellman-Ford)."}</p>`;
   h += R.path.length
-    ? `<p><b>Shortest path ${R.src} to ${R.dst}:</b> ${R.path.join(" &rarr; ")} &nbsp;(total cost ${R.cost}, next hop ${R.path[1]})</p>`
-    : `<p><b>No path</b> from ${R.src} to ${R.dst}.</p>`;
-  h += `<h2>Routing table of ${R.src}</h2><table><tr><th>Destination</th><th>Next hop</th><th>Cost</th></tr>` +
-    R.table.map(t => `<tr class="${t.dest === R.dst ? "sel" : ""}"><td>${t.dest}</td><td>${t.next}</td><td>${c(t.cost)}</td></tr>`).join("") + `</table>`;
+    ? `<p><b>Shortest path ${R.src} → ${R.dst}:</b> ${R.path.join(" &rarr; ")} &nbsp;(total cost ${R.cost}, next hop <strong>${R.path[1]}</strong>)</p>`
+    : `<p><b>No path</b> from ${R.src} to ${R.dst}. The destination is unreachable with the current topology.</p>`;
+  h += `<h2>Routing table of ${R.src}</h2>
+    <table><tr><th>Destination</th><th>Next Hop</th><th>Cost</th></tr>` +
+    R.table.map(t => `<tr class="${t.dest === R.dst ? "sel" : ""}">
+      <td>${t.dest}</td><td>${t.next}</td><td>${c(t.cost)}</td></tr>`).join("") + `</table>`;
   if (R.order) {
-    h += `<h2>Order in which routers are finalized</h2><table><tr><th>Step</th><th>Router</th><th>Distance</th></tr>` +
+    h += `<h2>Dijkstra Execution — Finalization Order</h2>
+      <table><tr><th>Step</th><th>Router</th><th>Distance from ${R.src}</th></tr>` +
       R.order.map((o, i) => `<tr><td>${i + 1}</td><td>${o.node}</td><td>${c(o.dist)}</td></tr>`).join("") + `</table>`;
   } else {
     const ds = Object.keys(R.rounds[0]);
-    h += `<h2>Distance vector of ${R.src} per exchange round</h2>
-      <p class="hint">&#10003; Converged after ${R.exchanges} round(s); highlighted cells changed in that round.</p>
+    h += `<h2>Distance Vector of ${R.src} — Per Exchange Round</h2>
+      <p class="hint">&#10003; Converged after ${R.exchanges} round(s). Highlighted cells changed in the latest round.</p>
       <table><tr><th>Round</th>${ds.map(d => `<th>${d}</th>`).join("")}</tr>` +
-      R.rounds.map((r, i) => `<tr><td>${i}</td>${ds.map(d => `<td class="${i && r[d] !== R.rounds[i - 1][d] ? "chg" : ""}">${c(r[d])}</td>`).join("")}</tr>`).join("") + `</table>`;
+      R.rounds.map((rnd, i) => `<tr><td>${i}</td>${ds.map(d =>
+        `<td class="${i && rnd[d] !== R.rounds[i-1][d] ? "chg" : ""}">${c(rnd[d])}</td>`).join("")}</tr>`).join("") + `</table>`;
   }
   out.innerHTML = h; updateSend();
 }
 
+// ============================================================
+// ORIGINAL: button wiring
+// ============================================================
 $("addNode").onclick = addNode;
 $("sample").onclick = loadSample;
-$("clear").onclick = () => { S.nodes = []; S.links = []; S.n = 0; S.res = null; say(""); refresh(); };
+$("clear").onclick = () => {
+  S.nodes = []; S.links = []; S.n = 0; S.res = null; say(""); refresh();
+  $("alert").hidden = true; trReset();
+};
 $("addLink").onclick = addLink;
 $("run").onclick = run;
-/* ---------- Packet simulation: driven by the real routing result (S.res.path) ---------- */
+
+// ============================================================
+// ORIGINAL: packet animation
+// ============================================================
 const sleep = ms => new Promise(r => setTimeout(r, ms));
+
+function animDuration() {
+  // ANIM_SPEED 1=very slow, 3=normal(900ms), 5=fast
+  const map = [1800, 1200, 900, 600, 350];
+  return map[ANIM_SPEED - 1] || 900;
+}
+
 function updateSend() { $("send").disabled = !(S.res && S.res.path.length > 1 && !S.busy); }
+
 function lock(b) {
   S.busy = b;
   document.querySelectorAll("#side button, #side select, #side input").forEach(e => e.disabled = b);
-  $("send").textContent = b ? "PACKET IN TRANSIT..." : "🚀 Send packet";
+  $("send").textContent = b ? "PACKET IN TRANSIT..." : "🚀 Send Packet";
   updateSend();
 }
-function move(a, b) {  // glide the marker along the real link between two router positions
+
+function move(a, b) {
   return new Promise(res => {
-    const t0 = performance.now(), D = 900, pk = $("pkt");
+    const t0 = performance.now(), D = animDuration(), pk = $("pkt");
     (function f(t) {
       const k = Math.min(1, (t - t0) / D);
-      pk.setAttribute("cx", a.x + (b.x - a.x) * k); pk.setAttribute("cy", a.y + (b.y - a.y) * k);
+      pk.setAttribute("cx", a.x + (b.x - a.x) * k);
+      pk.setAttribute("cy", a.y + (b.y - a.y) * k);
       k < 1 ? requestAnimationFrame(f) : res();
     })(t0);
   });
 }
+
 async function send() {
   const R = S.res;
   if (!R || R.path.length < 2 || S.busy) return;
   const P = R.path, pos = id => S.nodes.find(n => n.id === id), pk = $("pkt");
   lock(true); S.sent++; S.pid++; S.ok = null;
   const st = S.pk = { id: S.pid, hop: 0, next: P[1], status: "CREATED" };
-  pk.setAttribute("cx", pos(P[0]).x); pk.setAttribute("cy", pos(P[0]).y); pk.style.display = "block";
+  pk.setAttribute("cx", pos(P[0]).x); pk.setAttribute("cy", pos(P[0]).y);
+  pk.style.display = "block";
   S.cur = P[0]; pkStat(); draw(); netStatus();
-  await sleep(700);
-  for (let i = 0; i < P.length - 1; i++) {  // next-hop forwarding, one router at a time
+  await sleep(500);
+  for (let i = 0; i < P.length - 1; i++) {
     S.cur = P[i]; st.hop = i; st.next = P[i + 1]; st.status = "FORWARDING";
     pkStat(); draw();
     await move(pos(P[i]), pos(P[i + 1]));
   }
-  S.cur = S.ok = P[P.length - 1]; st.hop = P.length - 1; st.next = "-"; st.status = "DELIVERED"; S.done++;
+  S.cur = S.ok = P[P.length - 1];
+  st.hop = P.length - 1; st.next = "-"; st.status = "DELIVERED"; S.done++;
   pk.style.display = "none"; pkStat(); draw(); netStatus(); lock(false);
 }
+
+// ============================================================
+// ORIGINAL: pkStat
+// ============================================================
 function pkStat() {
   const p = S.pk, R = S.res, el = $("pstat");
-  if (!p || !R) { el.innerHTML = "<h2>Packet status</h2>No packet sent."; return; }
+  if (!p || !R) { el.innerHTML = "<h2>Packet Status</h2><p class='hint'>No packet sent yet.</p>"; return; }
   const n = R.path.length - 1, del = p.status === "DELIVERED";
-  el.innerHTML = `<h2>Packet status</h2>Packet ID: #${p.id}<br>Source: ${R.src}<br>Destination: ${R.dst}<br>
-    Current router: ${S.cur}<br>Next hop: ${p.next}<br>Hop: ${p.hop} / ${n}<br>Total cost: ${R.cost}<br>
-    Status: <b class="${del ? "st-ok" : "st-transit"}">${del ? "&#10003; DELIVERED" : p.status === "CREATED" ? "&#9679; PACKET CREATED" : "&#9679; IN TRANSIT (FORWARDING)"}</b>` +
+  el.innerHTML = `<h2>Packet Status</h2>
+    <strong>Packet ID:</strong> #${p.id}<br>
+    <strong>Source:</strong> ${R.src} &nbsp; <strong>Destination:</strong> ${R.dst}<br>
+    <strong>Current Router:</strong> ${S.cur}<br>
+    <strong>Next Hop:</strong> ${p.next}<br>
+    <strong>Hop:</strong> ${p.hop} / ${n} &nbsp; <strong>Total Cost:</strong> ${R.cost}<br>
+    <strong>Status:</strong> <b class="${del ? "st-ok" : "st-transit"}">${del ? "&#10003; DELIVERED" : p.status === "CREATED" ? "&#9679; PACKET CREATED" : "&#9679; IN TRANSIT"}</b>` +
     (del ? `<br>Path: ${R.path.join(" &rarr; ")}<br>Total hops: ${n}` : "");
 }
+
+// ============================================================
+// ORIGINAL: netStatus — extended for ONLINE/DEGRADED/ISOLATED
+// ============================================================
 function netStatus() {
   const f = S.links.filter(l => l.failed).length;
-  $("nstat").innerHTML = `<h2>Network status</h2>Routers: ${S.nodes.length}<br>Active links: ${S.links.length - f}<br>
-    Failed links: ${f}<br>Packets sent: ${S.sent}<br>Packets delivered: ${S.done}<br>
-    Status: <b class="${f ? "st-bad" : "st-ok"}">&#9679; ${f ? "DEGRADED" : "ONLINE"}</b>`;
+  const active = S.links.length - f;
+  let statusClass = "st-ok", statusText = "&#9679; ONLINE";
+  if (S.nodes.length === 0 || (S.nodes.length > 0 && active === 0 && S.links.length > 0)) {
+    statusClass = "st-bad"; statusText = "&#9679; ISOLATED";
+  } else if (f > 0) {
+    statusClass = "st-bad"; statusText = "&#9679; DEGRADED";
+  }
+  $("nstat").innerHTML = `<h2>Network Status</h2>
+    <strong>Routers:</strong> ${S.nodes.length}<br>
+    <strong>Total Links:</strong> ${S.links.length}<br>
+    <strong>Active Links:</strong> ${active}<br>
+    <strong>Failed Links:</strong> ${f}<br>
+    <strong>Packets Sent:</strong> ${S.sent}<br>
+    <strong>Packets Delivered:</strong> ${S.done}<br>
+    <strong>Network:</strong> <b class="${statusClass}">${statusText}</b>`;
+  // Update header pill
+  const pill = $("net-status-pill");
+  const txt  = $("net-status-text");
+  pill.className = "";
+  if (statusText.includes("ISOLATED")) { pill.classList.add("isolated"); txt.textContent = "ISOLATED"; }
+  else if (statusText.includes("DEGRADED")) { pill.classList.add("degraded"); txt.textContent = "DEGRADED"; }
+  else { txt.textContent = "ONLINE"; }
 }
 
-/* ---------- Link failure: mark link failed, re-run the real routing algorithm ---------- */
+// ============================================================
+// ORIGINAL: alertBox + toggleFail + reset
+// ============================================================
 function alertBox(html) { const a = $("alert"); a.innerHTML = html; a.hidden = false; }
+
 async function toggleFail() {
   const l = S.links[+$("fl").value];
   if (!l) return say("Add a link first.");
   const prev = S.res, name = `${l.a}–${l.b}`;
   l.failed = !l.failed; S.res = null; refresh();
-  const head = l.failed ? `<b class="st-bad">⚠ LINK ${name} FAILED</b><br>${l.a} ↔ ${l.b} is unavailable.`
-                        : `<b class="st-ok">Link ${name} restored.</b>`;
-  if (!prev) return alertBox(head + "<br>Run “Find shortest path” to compute a route.");
-  await run();  // the failed link is excluded by the backend when it builds the graph
+  const head = l.failed
+    ? `<b class="st-bad">⚠ LINK ${name} FAILED</b><br>${l.a} ↔ ${l.b} is unavailable.`
+    : `<b class="st-ok">&#10003; Link ${name} restored.</b>`;
+  if (!prev) return alertBox(head + '<br>Run "Find Shortest Path" to compute a route.');
+  await run();
   const N = S.res;
-  let t = head + `<br>Previous route: ${prev.path.length ? prev.path.join(" → ") + " (cost " + prev.cost + ")" : "none"}<br>`;
-  if (!N || !N.path.length) t += `<b class="st-bad">✗ No route available.</b>`;
-  else t += `New route: ${N.path.join(" → ")} (cost ${N.cost})<br><b class="st-ok">✓ ROUTE ${N.path.join() === prev.path.join() ? "UNCHANGED" : "UPDATED"}</b> &ndash; next hop ${N.path[1]}`;
+  let t = head + `<br><strong>Previous route:</strong> ${prev.path.length ? prev.path.join(" → ") + " (cost " + prev.cost + ")" : "none"}<br>`;
+  if (!N || !N.path.length) t += `<b class="st-bad">&#10007; No route available. Destination unreachable.</b>`;
+  else t += `<strong>New route:</strong> ${N.path.join(" → ")} (cost ${N.cost})<br>
+    <b class="st-ok">&#10003; ROUTE ${N.path.join() === prev.path.join() ? "UNCHANGED" : "UPDATED"}</b> – next hop ${N.path[1]}`;
   alertBox(t);
 }
+
 $("send").onclick = send;
 $("fail").onclick = toggleFail;
-$("reset").onclick = () => { S.links.forEach(l => l.failed = false); S.res = null; S.sent = S.done = 0; $("alert").hidden = true; say(""); refresh(); };
+$("reset").onclick = () => {
+  S.links.forEach(l => l.failed = false);
+  S.res = null; S.sent = S.done = 0;
+  $("alert").hidden = true; say(""); trReset(); refresh();
+};
+
+// ============================================================
+// NEW: Animation speed control
+// ============================================================
+const speedLabels = ["Very Slow", "Slow", "Normal", "Fast", "Very Fast"];
+$("speedSlider").oninput = function() {
+  ANIM_SPEED = +this.value;
+  $("speed-label").textContent = speedLabels[ANIM_SPEED - 1] || "Normal";
+};
+
+// ============================================================
+// NEW: Tab switching
+// ============================================================
+document.querySelectorAll(".tab-btn").forEach(btn => {
+  btn.addEventListener("click", () => {
+    document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll(".tab-panel").forEach(p => p.classList.remove("active"));
+    btn.classList.add("active");
+    $("tab-" + btn.dataset.tab).classList.add("active");
+    // Update learn panel content
+    if (btn.dataset.tab === "learn") updateLearn();
+  });
+});
+
+// ============================================================
+// NEW: Routing Decision Inspector
+// ============================================================
+$("insp-run").onclick = function() {
+  const R = S.res;
+  const router = $("insp-router").value;
+  const dest   = $("insp-dest").value;
+  const display = $("inspector-path-display");
+  const icNh = $("ic-nexthop"), icCost = $("ic-cost"),
+        icLc = $("ic-linkcost"), icHops = $("ic-hops");
+
+  if (!R) {
+    display.textContent = "No routing result available. Run 'Find Shortest Path' first.";
+    display.className = "inspector-path-display unreachable"; return;
+  }
+  if (router === dest) {
+    display.innerHTML = `<strong>Current router IS the destination.</strong> No forwarding needed. Cost: 0.`;
+    display.className = "inspector-path-display";
+    icNh.textContent = "—"; icCost.textContent = "0"; icLc.textContent = "0"; icHops.textContent = "0";
+    return;
+  }
+
+  // Find path from `router` to `dest` using routing table data
+  // We rebuild the subpath from the full routing table.
+  // The table is keyed to R.src. We need to walk next-hops from `router`.
+  // Strategy: use the table to find next-hop from `router`. If router === R.src use directly.
+  // Otherwise check all rows to find which router has router as intermediate.
+  // Simplest: re-derive from R.path if router is on the current path.
+
+  let subPath = null;
+  if (R.path.length > 0) {
+    const idx = R.path.indexOf(router);
+    const dIdx = R.path.indexOf(dest);
+    if (idx !== -1 && dIdx !== -1 && idx <= dIdx) {
+      subPath = R.path.slice(idx);
+      // Find the sub-path to dest
+      const dstIdx = subPath.indexOf(dest);
+      if (dstIdx !== -1) subPath = subPath.slice(0, dstIdx + 1);
+      else subPath = null;
+    }
+  }
+
+  // If router is the source, use table directly
+  if (router === R.src) {
+    const row = R.table.find(t => t.dest === dest);
+    if (!row || row.cost === null) {
+      display.textContent = `${dest} is unreachable from ${router}.`;
+      display.className = "inspector-path-display unreachable";
+      icNh.textContent = "N/A"; icCost.textContent = "∞"; icLc.textContent = "N/A"; icHops.textContent = "N/A";
+      return;
+    }
+    const nextHop = row.next;
+    const link = S.links.find(l =>
+      (!l.failed) && ((l.a === router && l.b === nextHop) || (l.a === nextHop && l.b === router)));
+    const linkCost = link ? link.cost : "?";
+    const hops = R.path.length > 0 ? R.path.length - 1 : "?";
+    icNh.textContent = nextHop;
+    icNh.className = "ic-val";
+    icCost.textContent = row.cost;
+    icLc.textContent = linkCost;
+    icHops.textContent = hops;
+    display.className = "inspector-path-display";
+    display.innerHTML = `<strong>Router ${router} → ${dest}</strong><br>
+      Next Hop: <strong>${nextHop}</strong> &nbsp;|&nbsp; Outgoing link cost: <strong>${linkCost}</strong><br>
+      ${R.path.length ? "Full path: " + R.path.join(" → ") : ""}
+      <br><em style="font-size:.8rem;color:var(--muted)">Algorithm: ${R.algorithm === "dijkstra" ? "Dijkstra — shortest path via predecessor map" : "Distance Vector — converged routing table"}</em>`;
+    return;
+  }
+
+  // Router is an intermediate node
+  if (subPath && subPath.length >= 2) {
+    const nextHop = subPath[1];
+    const link = S.links.find(l =>
+      (!l.failed) && ((l.a === router && l.b === nextHop) || (l.a === nextHop && l.b === router)));
+    const linkCost = link ? link.cost : "?";
+    icNh.textContent = nextHop;
+    icNh.className = "ic-val";
+    icCost.textContent = "see path";
+    icLc.textContent = linkCost;
+    icHops.textContent = subPath.length - 1;
+    display.className = "inspector-path-display";
+    display.innerHTML = `<strong>Router ${router} → ${dest}</strong><br>
+      Next Hop from ${router}: <strong>${nextHop}</strong> &nbsp;|&nbsp; Outgoing link cost: <strong>${linkCost}</strong><br>
+      Remaining path: <strong>${subPath.join(" → ")}</strong>`;
+    return;
+  }
+
+  display.textContent = `${dest} is unreachable from ${router} with the current routing result. Select source as the router or recompute from ${router}.`;
+  display.className = "inspector-path-display unreachable";
+  icNh.textContent = "N/A"; icNh.className = "ic-val red";
+  icCost.textContent = "∞"; icLc.textContent = "N/A"; icHops.textContent = "N/A";
+};
+
+// ============================================================
+// NEW: Traceroute
+// ============================================================
+const TR = { active: false, hop: 0, path: [], running: false };
+
+function trReset() {
+  TR.active = false; TR.hop = 0; TR.path = []; TR.running = false;
+  $("tr-next").disabled = true;
+  $("tr-log").innerHTML = `<span style="color:rgba(255,255,255,.35)">Compute a route first, then click "Start Trace".</span>`;
+  $("tr-hop-val").textContent = "—";
+  $("tr-cost-val").textContent = "—";
+  draw();
+}
+
+$("tr-start").onclick = function() {
+  const R = S.res;
+  if (!R) { alert("Compute a route first."); return; }
+  if (!R.path.length) {
+    $("tr-log").innerHTML = `<span class="tr-fail">&#10007; Destination unreachable. No path to trace.</span>`;
+    return;
+  }
+  TR.active = true; TR.hop = 0; TR.path = R.path; TR.running = true;
+  $("tr-next").disabled = false;
+  $("tr-log").innerHTML = `<span class="tr-hop">TRACE ROUTE: ${R.src} → ${R.dst}</span>\n`;
+  $("tr-log").innerHTML += `<span style="color:rgba(255,255,255,.4)">Path has ${R.path.length - 1} hop(s). Click "Next Hop" to reveal.\n</span>`;
+  // Show all future hops as pending
+  R.path.forEach((n, i) => {
+    $("tr-log").innerHTML += `<span class="tr-pending">  Hop ${i}: ${n}${i === 0 ? " (source)" : ""}\n</span>`;
+  });
+  $("tr-hop-val").textContent = `0 / ${R.path.length - 1}`;
+  $("tr-cost-val").textContent = "0";
+  draw();
+};
+
+$("tr-next").onclick = function() {
+  const R = S.res;
+  if (!TR.active || !R) return;
+
+  TR.hop++;
+  if (TR.hop >= TR.path.length) {
+    TR.hop = TR.path.length; // clamp
+    $("tr-next").disabled = true;
+  }
+
+  // Rebuild log
+  let log = `<span class="tr-hop">TRACE ROUTE: ${R.src} → ${R.dst}</span>\n`;
+  let costSoFar = 0;
+  for (let i = 0; i < TR.path.length; i++) {
+    if (i < TR.hop) {
+      if (i > 0) {
+        const prev = TR.path[i-1], cur = TR.path[i];
+        const link = S.links.find(l =>
+          (!l.failed) && ((l.a === prev && l.b === cur) || (l.a === cur && l.b === prev)));
+        costSoFar += link ? link.cost : 0;
+      }
+      const done = i === TR.path.length - 1;
+      log += `<span class="${done ? "tr-done" : "tr-hop"}">  Hop ${i}: ${TR.path[i]}${i === 0 ? " (source)" : done ? " ✓ DESTINATION REACHED" : ""}</span>\n`;
+    } else {
+      log += `<span class="tr-pending">  Hop ${i}: ${TR.path[i]}\n</span>`;
+    }
+  }
+  if (TR.hop === TR.path.length) {
+    log += `\n<span class="tr-done">&#10003; Trace complete. Total hops: ${TR.path.length - 1}, Total cost: ${R.cost}</span>\n`;
+    $("tr-next").disabled = true;
+  }
+  $("tr-log").innerHTML = log;
+  $("tr-log").scrollTop = $("tr-log").scrollHeight;
+  $("tr-hop-val").textContent = `${TR.hop - 1} / ${R.path.length - 1}`;
+  $("tr-cost-val").textContent = costSoFar;
+  draw();
+};
+
+$("tr-reset").onclick = trReset;
+
+// ============================================================
+// NEW: What-If Network Lab
+// ============================================================
+let WI = { exp: "fail", before: null, after: null };
+
+document.querySelectorAll(".wi-exp-btn").forEach(btn => {
+  btn.onclick = function() {
+    document.querySelectorAll(".wi-exp-btn").forEach(b => b.classList.remove("active"));
+    this.classList.add("active");
+    WI.exp = this.dataset.exp;
+    WI.before = null; WI.after = null;
+    renderWiArea();
+    $("wi-comparison").style.display = "none";
+    $("wi-comparison").innerHTML = "";
+  };
+});
+
+function renderWiArea() {
+  const area = $("wi-experiment-area");
+  if (WI.exp === "fail") {
+    area.innerHTML = `
+      <p class="hint" style="margin-bottom:8px">Select a link to fail, then run to see the new route.</p>
+      <div class="row"><div><label>Link to Fail</label><select id="wi-link-sel"></select></div></div>
+      <button class="btn-sm btn-danger" id="wi-fail-btn">Run Experiment A</button>`;
+    populateWiSelect("wi-link-sel");
+    $("wi-fail-btn").onclick = runWiFail;
+  } else if (WI.exp === "restore") {
+    area.innerHTML = `
+      <p class="hint" style="margin-bottom:8px">Restore a previously failed link and see how the route changes.</p>
+      <div class="row"><div><label>Link to Restore</label><select id="wi-restore-sel"></select></div></div>
+      <button class="btn-sm btn-success" id="wi-restore-btn">Run Experiment B</button>`;
+    populateWiSelect("wi-restore-sel", true);
+    $("wi-restore-btn").onclick = runWiRestore;
+  } else if (WI.exp === "cost") {
+    area.innerHTML = `
+      <p class="hint" style="margin-bottom:8px">Change a link's cost and see if the shortest path changes.</p>
+      <div class="row">
+        <div><label>Link</label><select id="wi-cost-link-sel"></select></div>
+        <div><label>New Cost</label><input type="number" id="wi-new-cost" min="1" value="1" style="width:100%;height:34px"></div>
+      </div>
+      <button class="btn-sm btn-primary" id="wi-cost-btn">Run Experiment C</button>`;
+    populateWiSelect("wi-cost-link-sel");
+    $("wi-cost-btn").onclick = runWiCost;
+  } else if (WI.exp === "isolate") {
+    area.innerHTML = `
+      <p class="hint" style="margin-bottom:8px">Temporarily mark all links of a router as failed, simulating isolation.</p>
+      <div class="row"><div><label>Router to Isolate</label><select id="wi-isolate-router"></select></div></div>
+      <button class="btn-sm btn-danger" id="wi-isolate-btn">Run Experiment D</button>
+      <button class="btn-sm" id="wi-restore-all-btn" style="margin-left:4px">Restore All Links</button>`;
+    const rSel = $("wi-isolate-router");
+    rSel.innerHTML = S.nodes.map(n => `<option>${n.id}</option>`).join("");
+    $("wi-isolate-btn").onclick = runWiIsolate;
+    $("wi-restore-all-btn").onclick = () => { S.links.forEach(l => l.failed = false); S.res = null; refresh(); };
+  }
+}
+
+function populateWiSelect(id, failedOnly = false) {
+  const sel = $(id);
+  if (!sel) return;
+  const links = failedOnly ? S.links.filter(l => l.failed) : S.links;
+  sel.innerHTML = links.map((l, i) => {
+    const realIdx = S.links.indexOf(l);
+    return `<option value="${realIdx}">${l.a}–${l.b} (cost ${l.cost})${l.failed ? " [failed]" : ""}</option>`;
+  }).join("");
+}
+
+async function captureState(label) {
+  // Run compute with current links state
+  const body = {
+    nodes: S.nodes.map(n => n.id), links: S.links,
+    algorithm: $("algo").value, source: $("src").value, dest: $("dst").value
+  };
+  const r = await fetch("/api/compute", { method:"POST", headers:{"Content-Type":"application/json"}, body:JSON.stringify(body) });
+  if (!r.ok) return null;
+  const d = await r.json();
+  d.src = body.source; d.dst = body.dest;
+  return d;
+}
+
+async function runWiFail() {
+  if (S.nodes.length < 2) return alert("Add at least 2 routers.");
+  const sel = $("wi-link-sel"); if (!sel) return;
+  const idx = +sel.value, l = S.links[idx];
+  if (!l) return;
+  WI.before = await captureState("before");
+  if (!WI.before) return alert("Compute a route first or check the algorithm settings.");
+  l.failed = true;
+  WI.after = await captureState("after");
+  l.failed = false; // restore so user can see the comparison; they can toggle manually
+  S.res = WI.before; refresh();
+  renderWiComparison(l.a + "–" + l.b, "Link failed: " + l.a + "–" + l.b);
+}
+
+async function runWiRestore() {
+  const sel = $("wi-restore-sel"); if (!sel) return;
+  const idx = +sel.value, l = S.links[idx];
+  if (!l) return;
+  // Before = current state (with link failed)
+  l.failed = true;
+  WI.before = await captureState("before");
+  l.failed = false;
+  WI.after = await captureState("after");
+  S.res = WI.after; refresh();
+  renderWiComparison(l.a + "–" + l.b, "Link restored: " + l.a + "–" + l.b);
+}
+
+async function runWiCost() {
+  const sel = $("wi-cost-link-sel"), costInput = $("wi-new-cost");
+  if (!sel || !costInput) return;
+  const idx = +sel.value, l = S.links[idx];
+  if (!l) return;
+  const newCost = Number(costInput.value);
+  if (!(newCost > 0)) return alert("Cost must be a positive number.");
+  const oldCost = l.cost;
+  WI.before = await captureState("before");
+  l.cost = newCost;
+  WI.after = await captureState("after");
+  l.cost = oldCost; // restore
+  S.res = WI.before; refresh();
+  renderWiComparison(l.a + "–" + l.b, `Cost change: ${l.a}–${l.b} from ${oldCost} → ${newCost}`);
+}
+
+async function runWiIsolate() {
+  const rSel = $("wi-isolate-router"); if (!rSel) return;
+  const router = rSel.value;
+  const affected = S.links.filter(l => l.a === router || l.b === router);
+  if (!affected.length) return alert("This router has no links to fail.");
+  WI.before = await captureState("before");
+  affected.forEach(l => l.failed = true);
+  WI.after = await captureState("after");
+  affected.forEach(l => l.failed = false); // restore for comparison
+  S.res = WI.before; refresh();
+  renderWiComparison(router, `Router isolated: ${router} (${affected.length} link(s) cut)`);
+}
+
+function renderWiComparison(subject, title) {
+  const B = WI.before, A = WI.after;
+  const cmp = $("wi-comparison");
+  cmp.style.display = "grid";
+
+  const fmt = r => r && r.path && r.path.length ? r.path.join(" → ") : "Unreachable";
+  const fmtCost = r => r && r.cost !== null ? r.cost : "∞";
+  const fmtNh = r => r && r.path && r.path.length > 1 ? r.path[1] : "N/A";
+
+  const routeChanged = B && A && JSON.stringify(B.path) !== JSON.stringify(A.path);
+  const costDiff = (B && A && B.cost !== null && A.cost !== null) ? (A.cost - B.cost) : null;
+  const nhChanged = fmtNh(B) !== fmtNh(A);
+
+  cmp.innerHTML = `
+    <div class="wi-card">
+      <h3 class="before">BEFORE — ${B ? (B.algorithm === "dijkstra" ? "Dijkstra" : "Distance Vector") : "—"}</h3>
+      <div><strong>Source:</strong> ${B ? B.src : "—"} → <strong>Dest:</strong> ${B ? B.dst : "—"}</div>
+      <div><strong>Path:</strong> ${fmt(B)}</div>
+      <div><strong>Cost:</strong> ${fmtCost(B)}</div>
+      <div><strong>Next Hop:</strong> ${fmtNh(B)}</div>
+    </div>
+    <div class="wi-card">
+      <h3 class="after">AFTER — ${title}</h3>
+      <div><strong>Path:</strong> ${fmt(A)}</div>
+      <div><strong>Cost:</strong> ${fmtCost(A)}</div>
+      <div><strong>Next Hop:</strong> ${fmtNh(A)}</div>
+      <div><strong>Reachable:</strong> ${A && A.path && A.path.length ? "Yes" : "No"}</div>
+    </div>
+    <div class="wi-change-summary">
+      <h3>CHANGE SUMMARY</h3>
+      <div class="wi-row"><span class="wi-key">Route changed</span>
+        <span class="wi-val ${routeChanged ? "yes" : "no"}">${routeChanged ? "Yes" : "No"}</span></div>
+      <div class="wi-row"><span class="wi-key">Cost difference</span>
+        <span class="wi-val ${costDiff > 0 ? "yes" : costDiff < 0 ? "no" : ""}">
+          ${costDiff === null ? "N/A" : (costDiff > 0 ? "+" : "") + costDiff}</span></div>
+      <div class="wi-row"><span class="wi-key">Next hop changed</span>
+        <span class="wi-val ${nhChanged ? "yes" : "no"}">${nhChanged ? "Yes" : "No"}</span></div>
+      <div class="wi-row"><span class="wi-key">Destination reachable</span>
+        <span class="wi-val ${A && A.path && A.path.length ? "reach" : "unreach"}">
+          ${A && A.path && A.path.length ? "Yes" : "No"}</span></div>
+    </div>`;
+}
+
+// Initialize what-if area
+renderWiArea();
+
+// ============================================================
+// NEW: Algorithm Comparison
+// ============================================================
+$("cmp-run").onclick = async function() {
+  const wrap = $("cmp-table-wrap");
+  const src = $("src").value, dst = $("dst").value;
+  if (!src || !dst) { wrap.innerHTML = `<p class="err">Select source and destination first.</p>`; return; }
+  if (S.nodes.length < 2) { wrap.innerHTML = `<p class="err">Add at least 2 routers.</p>`; return; }
+  wrap.innerHTML = `<p class="hint">Running comparison...</p>`;
+
+  const body = {
+    nodes: S.nodes.map(n => n.id), links: S.links,
+    source: src, dest: dst
+  };
+  const r = await fetch("/api/compare", {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body)
+  });
+  const data = await r.json();
+  if (!r.ok) { wrap.innerHTML = `<p class="err">${data.error || "Comparison failed."}</p>`; return; }
+
+  const D = data.dijkstra, DV = data.dv;
+  const fmt = (x) => x === null || x === undefined ? "∞" : x;
+  const fmtPath = (p) => p && p.length ? p.join(" → ") : "Unreachable";
+
+  const matchCls = (a, b) => (a !== null && b !== null && a === b) ? "match" : (a !== b ? "differ" : "");
+
+  wrap.innerHTML = `
+    <table class="cmp-table">
+      <tr>
+        <th>Metric</th>
+        <th><span class="algo-tag dijkstra">Dijkstra (Link State)</span></th>
+        <th><span class="algo-tag dv">Distance Vector</span></th>
+      </tr>
+      <tr><td><strong>Route</strong></td>
+        <td>${fmtPath(D.path)}</td>
+        <td>${fmtPath(DV.path)}</td></tr>
+      <tr><td><strong>Total Cost</strong></td>
+        <td class="${matchCls(D.cost, DV.cost)}">${fmt(D.cost)}</td>
+        <td class="${matchCls(DV.cost, D.cost)}">${fmt(DV.cost)}</td></tr>
+      <tr><td><strong>Hop Count</strong></td>
+        <td class="${matchCls(D.hops, DV.hops)}">${D.hops !== null ? D.hops : "N/A"}</td>
+        <td class="${matchCls(DV.hops, D.hops)}">${DV.hops !== null ? DV.hops : "N/A"}</td></tr>
+      <tr><td><strong>First Next Hop</strong></td>
+        <td class="${matchCls(D.next_hop, DV.next_hop)}">${D.next_hop || "N/A"}</td>
+        <td class="${matchCls(DV.next_hop, D.next_hop)}">${DV.next_hop || "N/A"}</td></tr>
+      <tr><td><strong>Reachable</strong></td>
+        <td>${D.reachable ? "✓ Yes" : "✗ No"}</td>
+        <td>${DV.reachable ? "✓ Yes" : "✗ No"}</td></tr>
+      <tr><td><strong>Algorithm Info</strong></td>
+        <td>${D.iterations} finalization step(s)</td>
+        <td>${DV.exchanges} exchange round(s)</td></tr>
+    </table>
+    <p class="hint" style="margin-top:8px">
+      <span style="display:inline-block;width:12px;height:12px;background:var(--green-bg);border:1px solid var(--green);border-radius:2px;margin-right:4px;vertical-align:middle"></span>Cells match &nbsp;
+      <span style="display:inline-block;width:12px;height:12px;background:var(--warn-bg);border:1px solid var(--orange);border-radius:2px;margin-right:4px;vertical-align:middle"></span>Cells differ — both may be valid if equal-cost paths exist.
+    </p>`;
+};
+
+// ============================================================
+// NEW: Experiment History
+// ============================================================
+function recordHistory(data) {
+  const failedLinks = S.links.filter(l => l.failed).map(l => `${l.a}–${l.b}`).join(", ") || "None";
+  S.history.unshift({
+    time: new Date().toLocaleTimeString(),
+    algo: data.algorithm === "dijkstra" ? "Dijkstra" : "Distance Vector",
+    src: data.src,
+    dst: data.dst,
+    path: data.path.length ? data.path.join(" → ") : "Unreachable",
+    cost: data.cost !== null ? data.cost : "∞",
+    result: data.path.length ? "Path Found" : "Unreachable",
+    failures: failedLinks
+  });
+  renderHistory();
+}
+
+function renderHistory() {
+  const wrap = $("hist-table-wrap");
+  if (!S.history.length) {
+    wrap.innerHTML = `<p class="hist-empty">No experiments recorded yet. Run "Find Shortest Path" to record results.</p>`;
+    return;
+  }
+  wrap.innerHTML = `<table>
+    <tr><th>#</th><th>Time</th><th>Algorithm</th><th>Source</th><th>Dest</th><th>Path</th><th>Cost</th><th>Result</th><th>Failed Links</th></tr>
+    ${S.history.map((h, i) => `<tr>
+      <td>${S.history.length - i}</td>
+      <td>${h.time}</td>
+      <td>${h.algo}</td>
+      <td>${h.src}</td>
+      <td>${h.dst}</td>
+      <td style="text-align:left">${h.path}</td>
+      <td>${h.cost}</td>
+      <td><b class="${h.result === "Path Found" ? "st-ok" : "st-bad"}">${h.result}</b></td>
+      <td>${h.failures}</td>
+    </tr>`).join("")}
+  </table>`;
+}
+
+$("hist-clear").onclick = () => { S.history = []; renderHistory(); };
+$("hist-export").onclick = () => {
+  if (!S.history.length) { alert("No history to export."); return; }
+  const header = ["#","Time","Algorithm","Source","Destination","Path","Cost","Result","Failed Links"];
+  const rows = S.history.map((h, i) => [
+    S.history.length - i, h.time, h.algo, h.src, h.dst,
+    `"${h.path}"`, h.cost, h.result, `"${h.failures}"`
+  ]);
+  const csv = [header.join(","), ...rows.map(r => r.join(","))].join("\n");
+  const blob = new Blob([csv], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url; a.download = "routeviz_history.csv"; a.click();
+  URL.revokeObjectURL(url);
+};
+
+// ============================================================
+// NEW: Educational "Learn" panel — updates based on active tab
+// ============================================================
+function updateLearn() {
+  const algo = $("algo").value;
+  document.querySelectorAll(".learn-concept").forEach(el => el.classList.remove("active"));
+  if (algo === "dijkstra") $("lc-dijkstra").classList.add("active");
+  else $("lc-dv").classList.add("active");
+}
+
+$("algo").addEventListener("change", () => {
+  // If learn tab is active, update content
+  const activeTab = document.querySelector(".tab-btn.active");
+  if (activeTab && activeTab.dataset.tab === "learn") updateLearn();
+});
+
+// ============================================================
+// Boot: load sample + init
+// ============================================================
 loadSample();
+pkStat();
+netStatus();
+renderHistory();
+renderWiArea();
 </script>
 </body>
 </html>

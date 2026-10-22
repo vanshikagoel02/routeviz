@@ -151,5 +151,53 @@ def compute():
     return jsonify(error="Unknown algorithm."), 400
 
 
+@app.route("/api/compare", methods=["POST"])
+def compare():
+    """Run both Dijkstra and Distance Vector on the same graph snapshot."""
+    data = request.get_json(force=True)
+    nodes = data.get("nodes", [])
+    src, dst = data.get("source"), data.get("dest")
+    if src not in nodes or dst not in nodes:
+        return jsonify(error="Choose a valid source and destination."), 400
+    try:
+        g = build_graph(nodes, data.get("links", []))
+    except (ValueError, KeyError, TypeError) as e:
+        return jsonify(error=str(e)), 400
+
+    # --- Dijkstra ---
+    d_table, d_dist, d_prev, d_order = dijkstra_table(g, src)
+    d_path = follow(d_prev, dst) if d_dist[dst] != INF else []
+    dijkstra_result = {
+        "path": d_path,
+        "cost": num(d_dist[dst]),
+        "hops": len(d_path) - 1 if d_path else None,
+        "next_hop": d_path[1] if len(d_path) > 1 else None,
+        "reachable": d_dist[dst] != INF,
+        "iterations": len(d_order),
+    }
+
+    # --- Distance Vector ---
+    dv, nh, history = distance_vector(g)
+    dv_path, cur = [src], src
+    while cur != dst and len(dv_path) <= len(nodes) and dv[src][dst] != INF:
+        cur = nh[cur][dst]
+        if cur is None:
+            dv_path = []
+            break
+        dv_path.append(cur)
+    if dv[src][dst] == INF or dv_path[-1:] != [dst]:
+        dv_path = []
+    dv_result = {
+        "path": dv_path,
+        "cost": num(dv[src][dst]),
+        "hops": len(dv_path) - 1 if dv_path else None,
+        "next_hop": dv_path[1] if len(dv_path) > 1 else None,
+        "reachable": dv[src][dst] != INF,
+        "exchanges": len(history) - 1,
+    }
+
+    return jsonify(dijkstra=dijkstra_result, dv=dv_result)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
